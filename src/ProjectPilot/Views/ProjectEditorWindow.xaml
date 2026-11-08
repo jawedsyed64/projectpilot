@@ -1,0 +1,201 @@
+<Window x:Class="ProjectPilot.Views.ProjectEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding WindowTitle}" Width="1040" Height="760" MinWidth="820" MinHeight="560"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBg}" Foreground="{DynamicResource TextPrimary}"
+        FontFamily="Segoe UI" FontSize="13">
+    <Grid Margin="22,18,22,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="20"/>
+            <ColumnDefinition Width="2*"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.ColumnSpan="3" Text="{Binding WindowTitle}" Style="{StaticResource H1}" Margin="0,0,0,8"/>
+
+        <!-- ============ Left: project details ============ -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,12,10">
+                <Border Style="{StaticResource Card}" Margin="0,4,0,4"
+                        Visibility="{Binding IsNew, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Start from a template" FontWeight="SemiBold"/>
+                        <ComboBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}" Margin="0,6,0,0"/>
+                        <TextBlock Text="{Binding SelectedTemplate.Description}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Project name *" Style="{StaticResource FieldLabel}"/>
+                <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" FontSize="15"/>
+
+                <TextBlock Text="Description" Style="{StaticResource FieldLabel}"/>
+                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource MultiLine}"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Objectives" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding Objectives, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource MultiLine}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Expected outcomes" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding Outcomes, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource MultiLine}"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Start date" Style="{StaticResource FieldLabel}"/>
+                        <DatePicker SelectedDate="{Binding StartDate}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Target completion date" Style="{StaticResource FieldLabel}"/>
+                        <DatePicker SelectedDate="{Binding TargetDate}"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Priority" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding Priority}" ItemTemplate="{StaticResource EnumItem}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Status" Style="{StaticResource FieldLabel}"/>
+                        <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding Status}" ItemTemplate="{StaticResource EnumItem}"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Project owner / manager" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding Owner, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Budget (optional)" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding BudgetText, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="Team members (separate names with commas)" Style="{StaticResource FieldLabel}"/>
+                <TextBox Text="{Binding TeamMembers, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <TextBlock Text="Stakeholders" Style="{StaticResource FieldLabel}"/>
+                <TextBox Text="{Binding Stakeholders, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ============ Right: attachments, discussion, history ============ -->
+        <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,4,6,10">
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Add files…" Command="{Binding AddAttachmentCommand}" Padding="10,4"/>
+                            <TextBlock Text="Documents &amp; attachments" Style="{StaticResource H2}" Margin="0" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <TextBlock Text="No files attached." Style="{StaticResource Muted}" Margin="0,8,0,0"
+                                   Visibility="{Binding Attachments.Count, Converter={StaticResource ZeroToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding Attachments}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,3">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" ToolTip="Remove"
+                                                Command="{Binding DataContext.RemoveAttachmentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="&#xE711;" Style="{StaticResource Icon}" Foreground="{DynamicResource Danger}"/>
+                                        </Button>
+                                        <TextBlock Text="&#xE8A5;" Style="{StaticResource Icon}" Margin="0,0,8,0" Foreground="{DynamicResource TextSecondary}"/>
+                                        <Button Style="{StaticResource LinkButton}" ToolTip="Open"
+                                                Command="{Binding DataContext.OpenAttachmentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis"/>
+                                        </Button>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Discussion" Style="{StaticResource H2}"/>
+                        <TextBlock Text="Save the project first to start a discussion." Style="{StaticResource Muted}"
+                                   Visibility="{Binding IsNew, Converter={StaticResource BoolToVis}}"/>
+                        <StackPanel Visibility="{Binding IsExisting, Converter={StaticResource BoolToVis}}">
+                            <TextBox Text="{Binding NewComment, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource MultiLine}" MinHeight="50"/>
+                            <Button Content="Add comment" Command="{Binding AddCommentCommand}" HorizontalAlignment="Right" Margin="0,6,0,6" Padding="10,4"/>
+                            <ItemsControl ItemsSource="{Binding Comments}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{DynamicResource BorderLine}" BorderThickness="0,1,0,0" Padding="0,8">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource Muted}" FontSize="11">
+                                                    <Run Text="{Binding Author, Mode=OneWay}" FontWeight="SemiBold"/><Run Text=" · "/><Run Text="{Binding CreatedAt, Mode=OneWay, StringFormat='{}{0:dd MMM yyyy HH:mm}'}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,12,0,0"
+                        Visibility="{Binding IsExisting, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="Activity history" Style="{StaticResource H2}"/>
+                        <ItemsControl ItemsSource="{Binding Activity}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,4">
+                                        <TextBlock FontSize="12">
+                                            <Run Text="{Binding Action, Mode=OneWay}" FontWeight="SemiBold"/><Run Text="  "/><Run Text="{Binding CreatedAt, Mode=OneWay, StringFormat='{}{0:dd MMM HH:mm}'}" Foreground="{DynamicResource TextSecondary}"/>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Details}" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ============ Buttons ============ -->
+        <DockPanel Grid.Row="2" Grid.ColumnSpan="3" Margin="0,14,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Cancel" IsCancel="True" Margin="0,0,8,0" MinWidth="90"/>
+                <Button Content="Save project" Command="{Binding SaveCommand}" Style="{StaticResource PrimaryButton}" MinWidth="120"/>
+            </StackPanel>
+            <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Danger}" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="SemiBold"/>
+        </DockPanel>
+    </Grid>
+</Window>

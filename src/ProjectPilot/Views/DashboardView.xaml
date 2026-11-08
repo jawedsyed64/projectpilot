@@ -1,0 +1,231 @@
+<UserControl x:Class="ProjectPilot.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,8,0">
+
+            <!-- Header -->
+            <DockPanel Margin="0,0,0,18">
+                <Button DockPanel.Dock="Right" Command="{Binding ReloadCommand}" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE72C;" Style="{StaticResource Icon}" Margin="0,0,6,0"/>
+                        <TextBlock Text="Refresh"/>
+                    </StackPanel>
+                </Button>
+                <StackPanel>
+                    <TextBlock Text="Dashboard" Style="{StaticResource H1}"/>
+                    <TextBlock Text="{Binding TodayText}" Style="{StaticResource Muted}" Margin="0,2,0,0"/>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Summary cards -->
+            <ItemsControl ItemsSource="{Binding Stats}" Margin="-6,0,-6,6">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Columns="4"/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Margin="6" Padding="0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="5"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border CornerRadius="10,0,0,10" Background="{Binding AccentKey, Converter={StaticResource BrushKey}}"/>
+                                <StackPanel Grid.Column="1" Margin="14,12">
+                                    <TextBlock Text="{Binding Title}" Style="{StaticResource Muted}" FontSize="12"/>
+                                    <TextBlock Text="{Binding Value}" FontSize="28" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding Caption}" Style="{StaticResource Muted}" FontSize="11"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Alerts -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Top"
+                                   Text="Rule-based alerts · AI recommendations arrive in Phase 3"/>
+                        <TextBlock Text="Alerts" Style="{StaticResource H2}"/>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Alerts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,3">
+                                    <Ellipse Width="9" Height="9" Margin="2,0,10,0" VerticalAlignment="Center"
+                                             Fill="{Binding Severity, Converter={StaticResource BrushKey}}"/>
+                                    <TextBlock Text="{Binding Message}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Progress + status chart -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Project progress" Style="{StaticResource H2}"/>
+                        <TextBlock Text="No projects yet." Style="{StaticResource Muted}"
+                                   Visibility="{Binding ProjectProgress.Count, Converter={StaticResource ZeroToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding ProjectProgress}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="170"/>
+                                            <ColumnDefinition Width="48"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
+                                                        Background="{Binding Status, Converter={StaticResource BrushKey}}">
+                                                    <TextBlock Text="{Binding Status, Converter={StaticResource EnumDisplay}}" Style="{StaticResource PillText}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding TargetText}" FontSize="11">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsLate}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource Danger}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <ProgressBar Grid.Column="1" Value="{Binding Progress, Mode=OneWay}" Maximum="100" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding ProgressText}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Tasks by status" Style="{StaticResource H2}"/>
+                        <ItemsControl ItemsSource="{Binding StatusBars}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="36"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Label}" VerticalAlignment="Center"/>
+                                        <ProgressBar Grid.Column="1" Height="14" VerticalAlignment="Center"
+                                                     Value="{Binding Count, Mode=OneWay}" Maximum="{Binding Max, Mode=OneWay}"
+                                                     Foreground="{Binding Status, Converter={StaticResource BrushKey}}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Deadlines, overdue, workload -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Upcoming deadlines (14 days)" Style="{StaticResource H2}"/>
+                        <TextBlock Text="Nothing due in the next two weeks." Style="{StaticResource Muted}"
+                                   Visibility="{Binding Upcoming.Count, Converter={StaticResource ZeroToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding Upcoming}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding ProjectName}" Style="{StaticResource Muted}" FontSize="11"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding DueDate, StringFormat='{}{0:ddd dd MMM}'}"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Warning}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Overdue tasks" Style="{StaticResource H2}"/>
+                        <TextBlock Text="No overdue tasks. 👍" Style="{StaticResource Muted}"
+                                   Visibility="{Binding Overdue.Count, Converter={StaticResource ZeroToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding Overdue}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Style="{StaticResource Muted}" FontSize="11">
+                                                <Run Text="{Binding ProjectName, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding AssigneeDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding DueDate, StringFormat='{}{0:dd MMM}'}"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Danger}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="4" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Team workload (open tasks)" Style="{StaticResource H2}"/>
+                        <TextBlock Text="No open tasks." Style="{StaticResource Muted}"
+                                   Visibility="{Binding Workload.Count, Converter={StaticResource ZeroToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding Workload}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,5">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Caption}" Style="{StaticResource Muted}" FontSize="11"/>
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                        </DockPanel>
+                                        <ProgressBar Margin="0,4,0,0" Value="{Binding Open, Mode=OneWay}" Maximum="{Binding Max, Mode=OneWay}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

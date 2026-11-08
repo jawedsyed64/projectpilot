@@ -1,0 +1,27 @@
+<UserControl x:Class="ProjectPilot.Views.ComingSoonView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Border Style="{StaticResource Card}" MaxWidth="620" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
+            <StackPanel>
+                <TextBlock Text="{Binding Icon}" Style="{StaticResource Icon}" FontSize="40" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource Accent}"/>
+                <TextBlock Text="{Binding Title}" Style="{StaticResource H1}" HorizontalAlignment="Center" Margin="0,14,0,4"/>
+                <Border Style="{StaticResource Pill}" Background="{DynamicResource Accent}" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding PhaseText}" Style="{StaticResource PillText}"/>
+                </Border>
+                <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,14,0,10"/>
+                <ItemsControl ItemsSource="{Binding Planned}" HorizontalAlignment="Center">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,3">
+                                <TextBlock Text="&#xE73E;" Style="{StaticResource Icon}" Foreground="{DynamicResource Success}" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
