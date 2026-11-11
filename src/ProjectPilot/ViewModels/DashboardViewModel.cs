@@ -8,7 +8,8 @@ namespace ProjectPilot.ViewModels;
 
 public sealed record StatCard(string Title, string Value, string Caption, string AccentKey);
 
-public sealed record ProjectProgressRow(string Name, int Progress, ProjectStatus Status, string TargetText, bool IsLate)
+public sealed record ProjectProgressRow(string Name, int Progress, ProjectStatus Status, string TargetText, bool IsLate,
+    ProjectHealth Health, string HealthReason)
 {
     public string ProgressText => $"{Progress}%";
 }
@@ -35,6 +36,7 @@ public partial class DashboardViewModel : ViewModelBase
     [ObservableProperty] private List<TaskItem> _overdue = new();
     [ObservableProperty] private List<WorkloadRow> _workload = new();
     [ObservableProperty] private List<AlertRow> _alerts = new();
+    [ObservableProperty] private List<Milestone> _milestones = new();
     [ObservableProperty] private string _todayText = "";
 
     [RelayCommand]
@@ -46,6 +48,8 @@ public partial class DashboardViewModel : ViewModelBase
         TodayText = today.ToString("dddd, d MMMM yyyy");
         var projects = Data.GetProjects();
         var tasks = Data.GetTasks();
+        var allMilestones = Data.GetMilestones();
+        var msByProject = allMilestones.GroupBy(m => m.ProjectId).ToDictionary(g => g.Key, g => (IReadOnlyCollection<Milestone>)g.ToList());
         var byProject = tasks.GroupBy(t => t.ProjectId).ToDictionary(g => g.Key, g => (IReadOnlyCollection<TaskItem>)g.ToList());
         IReadOnlyCollection<TaskItem> TasksOf(int id) => byProject.TryGetValue(id, out var l) ? l : Array.Empty<TaskItem>();
 
@@ -74,9 +78,12 @@ public partial class DashboardViewModel : ViewModelBase
                 var progress = Metrics.ProjectProgress(p, TasksOf(p.Id));
                 bool late = p.Status != ProjectStatus.Completed && p.TargetDate.HasValue && p.TargetDate.Value.Date < today;
                 var target = p.TargetDate.HasValue ? "Target " + p.TargetDate.Value.ToString("dd MMM yyyy") : "No target date";
-                return new ProjectProgressRow(p.Name, progress, p.Status, late ? target + " — late" : target, late);
+                var health = Tracking.Assess(p, TasksOf(p.Id), msByProject.TryGetValue(p.Id, out var pm) ? pm : Array.Empty<Milestone>());
+                return new ProjectProgressRow(p.Name, progress, p.Status, late ? target + " — late" : target, late, health.Level, health.Reason);
             })
             .OrderBy(r => r.Status == ProjectStatus.Completed)
+            .ThenByDescending(r => r.Health == ProjectHealth.Delayed)
+            .ThenByDescending(r => r.Health == ProjectHealth.AtRisk)
             .ThenBy(r => r.Progress)
             .ToList();
 
@@ -95,7 +102,22 @@ public partial class DashboardViewModel : ViewModelBase
         int maxLoad = Math.Max(1, load.Count == 0 ? 1 : load.Max(x => x.Open));
         Workload = load.Select(x => new WorkloadRow(x.Name, x.Open, x.Over, maxLoad)).ToList();
 
-        Alerts = BuildAlerts(projects, tasks, TasksOf, today);
+        Milestones = allMilestones.Where(m => !m.IsCompleted && (m.IsOverdue || (m.DueDate.HasValue && m.DueDate.Value.Date <= today.AddDays(30))))
+                                  .OrderBy(m => m.DueDate).Take(8).ToList();
+
+        var alerts = BuildAlerts(projects, tasks, TasksOf, today);
+        var msAlerts = new List<AlertRow>();
+        foreach (var m in allMilestones.Where(m => m.IsOverdue))
+            msAlerts.Add(new("Danger", $"Milestone “{m.Title}” ({m.ProjectName}) was due {m.DueDate:dd MMM} and is not completed."));
+        foreach (var m in allMilestones.Where(m => !m.IsCompleted && !m.IsOverdue && m.DueDate.HasValue &&
+                                                   m.DueDate.Value.Date <= today.AddDays(3) && m.LinkedDone < m.LinkedTotal))
+            msAlerts.Add(new("Warning", $"Milestone “{m.Title}” is due {m.DueDate:ddd dd MMM} with {m.LinkedTotal - m.LinkedDone} linked task(s) still open."));
+        foreach (var m in allMilestones.Where(m => m.IsReady))
+            msAlerts.Add(new("Info", $"All tasks for milestone “{m.Title}” are done — you can mark it completed."));
+        if (msAlerts.Count > 0)
+            alerts = alerts.Where(a => a.Severity != "Success").Concat(msAlerts)
+                           .OrderBy(a => a.Severity switch { "Danger" => 0, "Warning" => 1, "Info" => 2, _ => 3 }).ToList();
+        Alerts = alerts;
     }
 
     private static List<AlertRow> BuildAlerts(List<Project> projects, List<TaskItem> tasks,

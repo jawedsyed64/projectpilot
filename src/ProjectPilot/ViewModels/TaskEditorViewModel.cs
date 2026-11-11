@@ -97,6 +97,20 @@ public partial class TaskEditorViewModel : ObservableObject
     public bool HasNoDependencyOptions => Dependencies.Count == 0;
     public string OverdueNote => Model.IsOverdue ? $"This task is overdue (was due {Model.DueDate:dd MMM yyyy})." : "";
 
+    /// <summary>Planned vs actual summary for existing tasks.</summary>
+    public string ScheduleInfo
+    {
+        get
+        {
+            if (IsNew) return "";
+            static string F(DateTime? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy") : "—";
+            var s = $"Planned: {F(Model.BaselineStart)} – {F(Model.BaselineDue)}   ·   Actually started: {F(Model.StartedAt)}   ·   Completed: {F(Model.CompletedAt)}";
+            if (Model.SlipDays is int slip && slip != 0)
+                s += slip > 0 ? $"   ·   deadline {slip} day(s) later than planned" : $"   ·   deadline {-slip} day(s) earlier than planned";
+            return s;
+        }
+    }
+
     public event Action<bool>? CloseRequested;
 
     partial void OnSelectedProjectChanged(Project? value)
@@ -200,6 +214,17 @@ public partial class TaskEditorViewModel : ObservableObject
         Model.DependsOn = deps;
 
         var next = _data.SaveTask(Model);
+
+        // If the dates moved, push dependent tasks that would now start too early (after asking).
+        var plan = Scheduler.PlanMove(_data.GetTasks(Model.ProjectId), Model.Id, Model.StartDate, Model.DueDate);
+        if (plan.Count > 0)
+        {
+            var list = string.Join("\n", plan.Take(12).Select(c => "• " + c.Describe()));
+            if (plan.Count > 12) list += $"\n… and {plan.Count - 12} more";
+            if (Dialogs.Confirm($"These tasks depend on “{Model.Title}” and would now start before it finishes:\n\n{list}\n\nMove them later automatically?",
+                    "Update dependent tasks"))
+                _data.RescheduleTasks(plan, $"follows “{Model.Title}”");
+        }
 
         if (wasNew)
         {

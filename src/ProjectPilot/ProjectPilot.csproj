@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ProjectPilot</AssemblyName>
     <RootNamespace>ProjectPilot</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>ProjectPilot</Product>
     <Description>AI-powered project management for Windows</Description>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

@@ -43,8 +43,14 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- Alerts -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,12">
+            <!-- Alerts + milestones -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" FontSize="11" VerticalAlignment="Top"
@@ -64,6 +70,39 @@
                     </ItemsControl>
                 </StackPanel>
             </Border>
+
+
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Important milestones (next 30 days)" Style="{StaticResource H2}"/>
+                        <TextBlock Text="No upcoming milestones." Style="{StaticResource Muted}"
+                                   Visibility="{Binding Milestones.Count, Converter={StaticResource ZeroToVis}}"/>
+                        <ItemsControl ItemsSource="{Binding Milestones}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="◆" Margin="0,0,8,0" VerticalAlignment="Center"
+                                                   Foreground="{Binding StatusKey, Converter={StaticResource BrushKey}}"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Style="{StaticResource Muted}" FontSize="11">
+                                                <Run Text="{Binding ProjectName, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding LinkedText, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding DueDate, StringFormat='{}{0:ddd dd MMM}'}" Margin="8,0,0,0"
+                                                   VerticalAlignment="Center" Foreground="{Binding StatusKey, Converter={StaticResource BrushKey}}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <!-- Progress + status chart -->
             <Grid Margin="0,0,0,12">
@@ -90,9 +129,9 @@
                                         <StackPanel>
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                                <Border Style="{StaticResource Pill}" Margin="8,0,0,0"
-                                                        Background="{Binding Status, Converter={StaticResource BrushKey}}">
-                                                    <TextBlock Text="{Binding Status, Converter={StaticResource EnumDisplay}}" Style="{StaticResource PillText}"/>
+                                                <Border Style="{StaticResource Pill}" Margin="8,0,0,0" ToolTip="{Binding HealthReason}"
+                                                        Background="{Binding Health, Converter={StaticResource BrushKey}}">
+                                                    <TextBlock Text="{Binding Health, Converter={StaticResource EnumDisplay}}" Style="{StaticResource PillText}"/>
                                                 </Border>
                                             </StackPanel>
                                             <TextBlock Text="{Binding TargetText}" FontSize="11">

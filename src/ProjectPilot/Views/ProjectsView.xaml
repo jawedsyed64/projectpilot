@@ -60,6 +60,16 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Health" SortMemberPath="HealthLevel" Width="95">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource Pill}" Background="{Binding HealthLevel, Converter={StaticResource BrushKey}}"
+                                    ToolTip="{Binding Health.Reason}">
+                                <TextBlock Text="{Binding HealthLevel, Converter={StaticResource EnumDisplay}}" Style="{StaticResource PillText}"/>
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Priority" SortMemberPath="Priority" Width="90">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -115,8 +125,9 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,12,0,0">
             <Button Content="Edit" Command="{Binding EditCommand}" Margin="0,0,8,0"/>
             <Button Content="Open tasks" Command="{Binding OpenTasksCommand}" Margin="0,0,8,0"/>
+            <Button Content="Open timeline" Command="{Binding OpenTimelineCommand}" Margin="0,0,8,0"/>
             <Button Content="Delete" Command="{Binding DeleteCommand}" Style="{StaticResource DangerButton}"/>
-            <TextBlock Text="Tip: double-click a project to edit it." Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="16,0,0,0"/>
+            <TextBlock Text="Tip: double-click a project to edit it · hover over Health to see why." Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="16,0,0,0"/>
         </StackPanel>
     </Grid>
 </UserControl>

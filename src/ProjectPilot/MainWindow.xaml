@@ -13,6 +13,8 @@
         <DataTemplate DataType="{x:Type vm:ProjectsViewModel}"><v:ProjectsView/></DataTemplate>
         <DataTemplate DataType="{x:Type vm:TasksViewModel}"><v:TasksView/></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><v:SettingsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TimelineViewModel}"><v:TimelineView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MilestonesViewModel}"><v:MilestonesView/></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ComingSoonViewModel}"><v:ComingSoonView/></DataTemplate>
     </Window.Resources>
 
@@ -64,6 +66,31 @@
         </Border>
 
         <!-- Page -->
-        <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" Margin="28,22,28,20" Focusable="False"/>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Automatic deadline alert -->
+            <Border Margin="28,14,28,0" CornerRadius="8" Padding="14,8"
+                    Background="{Binding BannerKey, Converter={StaticResource BrushKey}}"
+                    Visibility="{Binding ShowBanner, Converter={StaticResource BoolToVis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Command="{Binding DismissBannerCommand}"
+                            ToolTip="Dismiss" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="&#xE711;" Style="{StaticResource Icon}" Foreground="White"/>
+                    </Button>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Command="{Binding OpenDashboardCommand}"
+                            VerticalAlignment="Center" Margin="12,0,0,0">
+                        <TextBlock Text="View dashboard" Foreground="White" FontWeight="SemiBold" TextDecorations="Underline"/>
+                    </Button>
+                    <TextBlock Text="&#xE7BA;" Style="{StaticResource Icon}" Foreground="White" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding BannerText}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                </DockPanel>
+            </Border>
+
+            <ContentControl Grid.Row="1" Content="{Binding CurrentPage}" Margin="28,18,28,20" Focusable="False"/>
+        </Grid>
     </Grid>
 </Window>

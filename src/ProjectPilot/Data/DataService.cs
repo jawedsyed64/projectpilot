@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using ProjectPilot.Models;
+using ProjectPilot.Services;
 
 namespace ProjectPilot.Data;
 
@@ -132,6 +133,9 @@ public sealed class DataService
         Progress = r.Int("progress"),
         Recurrence = r.EnumOf("recurrence", Recurrence.None),
         CompletedAt = r.NDate("completed_at"),
+        StartedAt = r.NDate("started_at"),
+        BaselineStart = r.NDate("baseline_start"),
+        BaselineDue = r.NDate("baseline_due"),
         CreatedAt = r.Date("created_at"),
         UpdatedAt = r.Date("updated_at"),
         ProjectName = r.Str("project_name"),
@@ -210,6 +214,7 @@ public sealed class DataService
         ("$priority", t.Priority), ("$status", t.Status), ("$start_date", t.StartDate?.Date),
         ("$due_date", t.DueDate?.Date), ("$progress", Math.Clamp(t.Progress, 0, 100)), ("$recurrence", t.Recurrence),
         ("$completed_at", t.CompletedAt), ("$created_at", t.CreatedAt), ("$updated_at", t.UpdatedAt), ("$id", t.Id),
+        ("$started_at", t.StartedAt), ("$baseline_start", t.BaselineStart?.Date), ("$baseline_due", t.BaselineDue?.Date),
     };
 
     /// <summary>
@@ -231,12 +236,23 @@ public sealed class DataService
         }
         else t.CompletedAt = null;
 
+        if (t.Status != WorkStatus.NotStarted && t.StartedAt == null) t.StartedAt = old?.StartedAt ?? now;
+        if (t.Status == WorkStatus.NotStarted) t.StartedAt = null;
+        if (t.Id == 0)
+        {
+            // The plan (baseline) is the dates the task was first given.
+            t.BaselineStart ??= t.StartDate;
+            t.BaselineDue ??= t.DueDate;
+        }
+
         TaskItem? spawned = null;
         if (justCompleted && t.Recurrence != Recurrence.None && t.DueDate.HasValue)
         {
             spawned = t.CloneForNextOccurrence();
             spawned.DueDate = Advance(t.DueDate.Value, t.Recurrence);
             if (t.StartDate.HasValue) spawned.StartDate = Advance(t.StartDate.Value, t.Recurrence);
+            spawned.BaselineStart = spawned.StartDate;
+            spawned.BaselineDue = spawned.DueDate;
             t.Recurrence = Recurrence.None; // the series continues on the new occurrence
         }
 
@@ -255,7 +271,7 @@ public sealed class DataService
                 c.Exec(@"UPDATE tasks SET project_id=$project_id, parent_id=$parent_id, title=$title, description=$description,
                             notes=$notes, assignee=$assignee, priority=$priority, status=$status, start_date=$start_date,
                             due_date=$due_date, progress=$progress, recurrence=$recurrence, completed_at=$completed_at,
-                            updated_at=$updated_at
+                            started_at=$started_at, updated_at=$updated_at
                          WHERE id=$id;", TaskParams(t));
                 Log(c, t.ProjectId, t.Id, justCompleted ? "Task completed" : "Task updated",
                     $"{t.Title}: {DescribeTaskChanges(old, t)}");
@@ -286,9 +302,9 @@ public sealed class DataService
     private static void InsertTask(SqliteConnection c, TaskItem t)
     {
         c.Exec(@"INSERT INTO tasks(project_id,parent_id,title,description,notes,assignee,priority,status,start_date,due_date,
-                                   progress,recurrence,completed_at,created_at,updated_at)
+                                   progress,recurrence,completed_at,started_at,baseline_start,baseline_due,created_at,updated_at)
                  VALUES($project_id,$parent_id,$title,$description,$notes,$assignee,$priority,$status,$start_date,$due_date,
-                        $progress,$recurrence,$completed_at,$created_at,$updated_at);", TaskParams(t));
+                        $progress,$recurrence,$completed_at,$started_at,$baseline_start,$baseline_due,$created_at,$updated_at);", TaskParams(t));
         t.Id = c.LastId();
     }
 
@@ -334,6 +350,140 @@ public sealed class DataService
         foreach (var t in teams)
             people.AddRange(t.Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         return people.Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(p => p).ToList();
+    }
+
+    // ------------------------------------------------------------------ Scheduling
+
+    /// <summary>Applies a set of date changes (from dragging on the Gantt chart or dependency shifting).</summary>
+    public void RescheduleTasks(IReadOnlyList<DateChange> changes, string reason)
+    {
+        if (changes.Count == 0) return;
+        using var c = _db.Open();
+        var now = DateTime.Now;
+        c.Exec("BEGIN;");
+        try
+        {
+            foreach (var ch in changes)
+            {
+                c.Exec("UPDATE tasks SET start_date = $s, due_date = $d, updated_at = $u WHERE id = $id;",
+                    ("$s", ch.NewStart?.Date), ("$d", ch.NewDue?.Date), ("$u", now), ("$id", ch.Task.Id));
+                Log(c, ch.Task.ProjectId, ch.Task.Id, "Task rescheduled",
+                    $"{ch.Task.Title}: {Range(ch.OldStart, ch.OldDue)} → {Range(ch.NewStart, ch.NewDue)} ({reason})");
+            }
+            c.Exec("COMMIT;");
+        }
+        catch
+        {
+            c.Exec("ROLLBACK;");
+            throw;
+        }
+    }
+
+    /// <summary>Makes the current dates of every task in the project the new plan (baseline).</summary>
+    public void SetBaseline(int projectId)
+    {
+        using var c = _db.Open();
+        c.Exec("UPDATE tasks SET baseline_start = start_date, baseline_due = due_date WHERE project_id = $p;", ("$p", projectId));
+        Log(c, projectId, null, "Baseline set", "Current task dates saved as the planned schedule");
+    }
+
+    // ------------------------------------------------------------------ Milestones
+
+    private static Milestone MapMilestone(SqliteDataReader r) => new()
+    {
+        Id = r.Int("id"),
+        ProjectId = r.Int("project_id"),
+        Title = r.Str("title"),
+        Description = r.Str("description"),
+        DueDate = r.NDate("due_date"),
+        CompletedAt = r.NDate("completed_at"),
+        CreatedAt = r.Date("created_at"),
+        UpdatedAt = r.Date("updated_at"),
+        ProjectName = r.Str("project_name"),
+        LinkedTotal = r.Int("linked_total"),
+        LinkedDone = r.Int("linked_done"),
+    };
+
+    private const string MilestoneSelect = @"
+        SELECT m.*, p.name AS project_name,
+               (SELECT count(*) FROM milestone_tasks mt WHERE mt.milestone_id = m.id) AS linked_total,
+               (SELECT count(*) FROM milestone_tasks mt JOIN tasks t ON t.id = mt.task_id
+                 WHERE mt.milestone_id = m.id AND t.status = 'Completed') AS linked_done
+        FROM milestones m JOIN projects p ON p.id = m.project_id";
+
+    public List<Milestone> GetMilestones(int? projectId = null)
+    {
+        using var c = _db.Open();
+        var list = projectId.HasValue
+            ? c.Query(MilestoneSelect + " WHERE m.project_id = $p ORDER BY m.due_date IS NULL, m.due_date, m.id;", MapMilestone, ("$p", projectId.Value))
+            : c.Query(MilestoneSelect + " ORDER BY m.due_date IS NULL, m.due_date, m.id;", MapMilestone);
+        var links = c.Query("SELECT milestone_id, task_id FROM milestone_tasks;", r => (M: r.Int("milestone_id"), T: r.Int("task_id")))
+                     .GroupBy(x => x.M).ToDictionary(g => g.Key, g => g.Select(x => x.T).ToList());
+        foreach (var m in list) m.TaskIds = links.TryGetValue(m.Id, out var l) ? l : new List<int>();
+        return list;
+    }
+
+    public Milestone? GetMilestone(int id) => GetMilestones().FirstOrDefault(m => m.Id == id);
+
+    public void SaveMilestone(Milestone m)
+    {
+        using var c = _db.Open();
+        var now = DateTime.Now;
+        m.UpdatedAt = now;
+        c.Exec("BEGIN;");
+        try
+        {
+            if (m.Id == 0)
+            {
+                m.CreatedAt = now;
+                c.Exec(@"INSERT INTO milestones(project_id, title, description, due_date, completed_at, created_at, updated_at)
+                         VALUES($p, $t, $d, $due, $done, $c, $u);",
+                    ("$p", m.ProjectId), ("$t", m.Title.Trim()), ("$d", m.Description), ("$due", m.DueDate?.Date),
+                    ("$done", m.CompletedAt), ("$c", m.CreatedAt), ("$u", m.UpdatedAt));
+                m.Id = c.LastId();
+                Log(c, m.ProjectId, null, "Milestone created", $"{m.Title} — due {D(m.DueDate)}");
+            }
+            else
+            {
+                c.Exec(@"UPDATE milestones SET title = $t, description = $d, due_date = $due, completed_at = $done, updated_at = $u
+                         WHERE id = $id;",
+                    ("$t", m.Title.Trim()), ("$d", m.Description), ("$due", m.DueDate?.Date), ("$done", m.CompletedAt),
+                    ("$u", m.UpdatedAt), ("$id", m.Id));
+                Log(c, m.ProjectId, null, m.IsCompleted ? "Milestone updated (completed)" : "Milestone updated", $"{m.Title} — due {D(m.DueDate)}");
+            }
+            c.Exec("DELETE FROM milestone_tasks WHERE milestone_id = $id;", ("$id", m.Id));
+            foreach (var tid in m.TaskIds.Distinct())
+                c.Exec("INSERT OR IGNORE INTO milestone_tasks(milestone_id, task_id) VALUES($m, $t);", ("$m", m.Id), ("$t", tid));
+            c.Exec("COMMIT;");
+        }
+        catch
+        {
+            c.Exec("ROLLBACK;");
+            throw;
+        }
+    }
+
+    public void SetMilestoneCompleted(Milestone m, bool completed)
+    {
+        using var c = _db.Open();
+        c.Exec("UPDATE milestones SET completed_at = $d, updated_at = $u WHERE id = $id;",
+            ("$d", completed ? (object)DateTime.Now : null), ("$u", DateTime.Now), ("$id", m.Id));
+        Log(c, m.ProjectId, null, completed ? "Milestone completed" : "Milestone reopened", m.Title);
+    }
+
+    public void MoveMilestone(Milestone m, DateTime newDue)
+    {
+        using var c = _db.Open();
+        c.Exec("UPDATE milestones SET due_date = $d, updated_at = $u WHERE id = $id;",
+            ("$d", newDue.Date), ("$u", DateTime.Now), ("$id", m.Id));
+        Log(c, m.ProjectId, null, "Milestone rescheduled", $"{m.Title}: {D(m.DueDate)} → {D(newDue)}");
+    }
+
+    public void DeleteMilestone(Milestone m)
+    {
+        using var c = _db.Open();
+        c.Exec("DELETE FROM milestones WHERE id = $id;", ("$id", m.Id));
+        Log(c, m.ProjectId, null, "Milestone deleted", m.Title);
     }
 
     // ------------------------------------------------------------------ Templates
@@ -522,5 +672,6 @@ public sealed class DataService
     // ------------------------------------------------------------------ helpers
 
     private static string D(DateTime? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy") : "—";
+    private static string Range(DateTime? a, DateTime? b) => $"{(a.HasValue ? a.Value.ToString("dd MMM") : "—")}–{D(b)}";
     private static string Blank(string s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 }

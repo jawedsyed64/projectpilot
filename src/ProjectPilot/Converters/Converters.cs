@@ -13,7 +13,9 @@ public sealed class EnumDisplayConverter : IValueConverter
     public static string Humanize(string s) => Regex.Replace(s, "(?<=[a-z])([A-Z])", " $1");
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is System.Enum e ? Humanize(e.ToString())
+        value is ProjectHealth.OnTrack ? "On Track"
+        : value is ProjectHealth.AtRisk ? "At Risk"
+        : value is System.Enum e ? Humanize(e.ToString())
         : value is string str ? Regex.Replace(str, @"^\d+\.\s*", "")
         : value?.ToString() ?? "";
 
@@ -51,6 +53,14 @@ public sealed class BrushKeyConverter : IValueConverter
             Priority.Medium => "Info",
             Priority.High => "Warning",
             Priority.Critical => "Danger",
+            _ => "Neutral"
+        },
+        ProjectHealth h => h switch
+        {
+            ProjectHealth.OnTrack => "Success",
+            ProjectHealth.AtRisk => "Warning",
+            ProjectHealth.Delayed => "Danger",
+            ProjectHealth.Completed => "Info",
             _ => "Neutral"
         },
         string str => str,

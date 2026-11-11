@@ -9,9 +9,10 @@ namespace ProjectPilot.ViewModels;
 
 public sealed class ProjectRow
 {
-    public ProjectRow(Project p, IReadOnlyCollection<TaskItem> tasks)
+    public ProjectRow(Project p, IReadOnlyCollection<TaskItem> tasks, IReadOnlyCollection<Milestone> milestones)
     {
         Model = p;
+        Health = Tracking.Assess(p, tasks, milestones);
         Progress = Metrics.ProjectProgress(p, tasks);
         Total = tasks.Count;
         Done = tasks.Count(t => t.IsCompleted);
@@ -32,6 +33,8 @@ public sealed class ProjectRow
     public int Done { get; }
     public int Overdue { get; }
     public bool IsLate { get; }
+    public HealthInfo Health { get; }
+    public ProjectHealth HealthLevel => Health.Level;
     public string ProgressText => $"{Progress}%";
     public string TaskSummary => Overdue > 0 ? $"{Done}/{Total} · {Overdue} overdue" : $"{Done}/{Total}";
 }
@@ -39,11 +42,13 @@ public sealed class ProjectRow
 public partial class ProjectsViewModel : ViewModelBase
 {
     private readonly Action<int> _openTasks;
+    private readonly Action<int> _openTimeline;
     private List<ProjectRow> _all = new();
 
-    public ProjectsViewModel(Action<int> openTasks)
+    public ProjectsViewModel(Action<int> openTasks, Action<int> openTimeline)
     {
         _openTasks = openTasks;
+        _openTimeline = openTimeline;
         StatusFilters = new List<Option> { new("All statuses", null), new("Open (not completed/cancelled)", "open") };
         StatusFilters.AddRange(Enum.GetValues<ProjectStatus>().Select(s => new Option(EnumDisplayConverter.Humanize(s.ToString()), s)));
         _statusFilter = StatusFilters[0];
@@ -53,7 +58,7 @@ public partial class ProjectsViewModel : ViewModelBase
     public List<Option> StatusFilters { get; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(EditCommand), nameof(DeleteCommand), nameof(OpenTasksCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EditCommand), nameof(DeleteCommand), nameof(OpenTasksCommand), nameof(OpenTimelineCommand))]
     private ProjectRow? _selected;
 
     [ObservableProperty] private string _search = "";
@@ -68,8 +73,11 @@ public partial class ProjectsViewModel : ViewModelBase
         var selectedId = Selected?.Id;
         var tasks = Data.GetTasks();
         var byProject = tasks.GroupBy(t => t.ProjectId).ToDictionary(g => g.Key, g => g.ToList());
+        var msByProject = Data.GetMilestones().GroupBy(m => m.ProjectId).ToDictionary(g => g.Key, g => g.ToList());
         _all = Data.GetProjects()
-            .Select(p => new ProjectRow(p, byProject.TryGetValue(p.Id, out var l) ? l : new List<TaskItem>()))
+            .Select(p => new ProjectRow(p,
+                byProject.TryGetValue(p.Id, out var l) ? l : new List<TaskItem>(),
+                msByProject.TryGetValue(p.Id, out var ms) ? ms : new List<Milestone>()))
             .ToList();
         ApplyFilter();
         Selected = Projects.FirstOrDefault(p => p.Id == selectedId);
@@ -119,6 +127,12 @@ public partial class ProjectsViewModel : ViewModelBase
                 "Delete project")) return;
         Data.DeleteProject(Selected.Id);
         Refresh();
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void OpenTimeline()
+    {
+        if (Selected != null) _openTimeline(Selected.Id);
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]

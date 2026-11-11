@@ -25,7 +25,8 @@ public partial class SettingsViewModel : ViewModelBase
         new("Dashboard, projects, tasks, subtasks, dependencies", "Fully offline — on this PC"),
         new("Comments, attachments, activity history", "Fully offline — on this PC"),
         new("Backups, restore, light/dark theme", "Fully offline — on this PC"),
-        new("Timeline / Gantt, milestones, calendar, reports (Phases 2 & 4)", "Offline — on this PC"),
+        new("Timeline / Gantt chart, milestones, critical path, project health", "Fully offline — on this PC"),
+        new("Calendar, reports, team management (Phase 4)", "Offline — on this PC"),
         new("AI Project Assistant (Phase 3)", "Needs internet + your own AI API key (pay-as-you-go)"),
     };
 

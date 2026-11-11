@@ -9,6 +9,8 @@ public enum WorkStatus { NotStarted, InProgress, UnderReview, OnHold, Completed,
 
 public enum Recurrence { None, Daily, Weekly, Monthly }
 
+public enum ProjectHealth { OnTrack, AtRisk, Delayed, Completed, Cancelled }
+
 public class Project
 {
     public int Id { get; set; }
@@ -49,9 +51,15 @@ public class TaskItem
     public int Progress { get; set; }
     public Recurrence Recurrence { get; set; } = Recurrence.None;
     public DateTime? CompletedAt { get; set; }
+    public DateTime? StartedAt { get; set; }
+    public DateTime? BaselineStart { get; set; }
+    public DateTime? BaselineDue { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<int> DependsOn { get; set; } = new();
+
+    /// <summary>Days the current deadline is later (+) or earlier (-) than the planned (baseline) deadline.</summary>
+    public int? SlipDays => DueDate.HasValue && BaselineDue.HasValue ? (DueDate.Value.Date - BaselineDue.Value.Date).Days : null;
 
     // ---- Display / computed (not stored) ----
     public string ProjectName { get; set; } = "";
@@ -87,9 +95,45 @@ public class TaskItem
         next.Status = WorkStatus.NotStarted;
         next.Progress = 0;
         next.CompletedAt = null;
+        next.StartedAt = null;
+        next.BaselineStart = null;
+        next.BaselineDue = null;
         next.DependsOn = new List<int>();
         return next;
     }
+
+    public override string ToString() => Title;
+}
+
+public class Milestone
+{
+    public int Id { get; set; }
+    public int ProjectId { get; set; }
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public DateTime? DueDate { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public List<int> TaskIds { get; set; } = new();
+
+    // ---- Display / computed ----
+    public string ProjectName { get; set; } = "";
+    public int LinkedTotal { get; set; }
+    public int LinkedDone { get; set; }
+
+    public bool IsCompleted => CompletedAt.HasValue;
+    public bool IsOverdue => !IsCompleted && DueDate.HasValue && DueDate.Value.Date < DateTime.Today;
+    public bool IsDueSoon => !IsCompleted && !IsOverdue && DueDate.HasValue && DueDate.Value.Date <= DateTime.Today.AddDays(7);
+    public bool IsReady => !IsCompleted && LinkedTotal > 0 && LinkedDone == LinkedTotal;
+    public int Progress => IsCompleted ? 100 : LinkedTotal == 0 ? 0 : (int)Math.Round(100.0 * LinkedDone / LinkedTotal);
+    public string LinkedText => LinkedTotal == 0 ? "No linked tasks" : $"{LinkedDone}/{LinkedTotal} tasks done";
+
+    public string StatusText => IsCompleted ? "Completed" : IsOverdue ? "Overdue" : IsReady ? "Ready to complete"
+        : IsDueSoon ? "Due soon" : DueDate.HasValue ? "Upcoming" : "No date";
+
+    public string StatusKey => IsCompleted ? "Success" : IsOverdue ? "Danger" : IsReady ? "Purple"
+        : IsDueSoon ? "Warning" : "Info";
 
     public override string ToString() => Title;
 }

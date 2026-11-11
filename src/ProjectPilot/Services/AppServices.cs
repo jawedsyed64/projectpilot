@@ -76,6 +76,14 @@ public static class Dialogs
         return w.ShowDialog() == true;
     }
 
+    public static bool EditMilestone(Milestone? milestone, int? projectId)
+    {
+        var vm = new MilestoneEditorViewModel(milestone, projectId);
+        var w = new MilestoneEditorWindow { DataContext = vm, Owner = ActiveWindow };
+        vm.CloseRequested += ok => w.DialogResult = ok;
+        return w.ShowDialog() == true;
+    }
+
     public static string[] PickFiles()
     {
         var dlg = new OpenFileDialog { Multiselect = true, Title = "Choose files to attach" };

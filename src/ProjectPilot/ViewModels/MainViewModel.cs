@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using ProjectPilot.Data;
 using ProjectPilot.Services;
 
@@ -15,7 +17,8 @@ public abstract class ViewModelBase : ObservableObject
 
 public sealed record NavItem(string Key, string Title, string Icon, int Phase)
 {
-    public bool IsComingSoon => Phase > 1;
+    public const int CurrentPhase = 2;
+    public bool IsComingSoon => Phase > CurrentPhase;
 }
 
 public partial class MainViewModel : ObservableObject
@@ -39,11 +42,22 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private NavItem? _selectedNav;
     [ObservableProperty] private ViewModelBase? _currentPage;
 
-    public string VersionText => "Version 0.1.0  ·  Phase 1";
+    public string VersionText => "Version 0.2.0  ·  Phase 2";
+
+    // ---- deadline alert banner ----
+    [ObservableProperty] private string _bannerText = "";
+    [ObservableProperty] private string _bannerKey = "Warning";
+    [ObservableProperty] private bool _showBanner;
+    private string _dismissedText = "";
+    private readonly DispatcherTimer _alertTimer;
 
     public MainViewModel()
     {
         SelectedNav = NavItems[0];
+        CheckAlerts();
+        _alertTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(15) };
+        _alertTimer.Tick += (_, _) => CheckAlerts();
+        _alertTimer.Start();
     }
 
     partial void OnSelectedNavChanged(NavItem? value)
@@ -52,6 +66,55 @@ public partial class MainViewModel : ObservableObject
         var page = GetPage(value);
         page.Refresh();
         CurrentPage = page;
+        CheckAlerts();
+    }
+
+    /// <summary>Automatic alert when deadlines are near or work has fallen behind.</summary>
+    public void CheckAlerts()
+    {
+        try
+        {
+            var data = AppServices.Data;
+            var tasks = data.GetTasks();
+            var milestones = data.GetMilestones();
+            var today = DateTime.Today;
+            int overdue = tasks.Count(t => t.IsOverdue);
+            int dueToday = tasks.Count(t => !t.IsCompleted && t.DueDate?.Date == today);
+            int dueTomorrow = tasks.Count(t => !t.IsCompleted && t.DueDate?.Date == today.AddDays(1));
+            int lateMs = milestones.Count(m => m.IsOverdue);
+            int soonMs = milestones.Count(m => !m.IsCompleted && m.DueDate.HasValue && m.DueDate.Value.Date >= today && m.DueDate.Value.Date <= today.AddDays(3));
+
+            var parts = new List<string>();
+            if (overdue > 0) parts.Add($"{overdue} overdue task{(overdue == 1 ? "" : "s")}");
+            if (dueToday > 0) parts.Add($"{dueToday} due today");
+            if (dueTomorrow > 0) parts.Add($"{dueTomorrow} due tomorrow");
+            if (lateMs > 0) parts.Add($"{lateMs} overdue milestone{(lateMs == 1 ? "" : "s")}");
+            if (soonMs > 0) parts.Add($"{soonMs} milestone{(soonMs == 1 ? "" : "s")} in the next 3 days");
+
+            var text = parts.Count == 0 ? "" : string.Join("  ·  ", parts);
+            BannerKey = overdue > 0 || lateMs > 0 ? "Danger" : "Warning";
+            BannerText = text;
+            ShowBanner = text.Length > 0 && text != _dismissedText;
+        }
+        catch (Exception ex)
+        {
+            App.LogError(ex);
+        }
+    }
+
+    [RelayCommand]
+    private void DismissBanner()
+    {
+        _dismissedText = BannerText;
+        ShowBanner = false;
+    }
+
+    [RelayCommand]
+    private void OpenDashboard()
+    {
+        var nav = NavItems.First(n => n.Key == "dashboard");
+        if (SelectedNav == nav) CurrentPage?.Refresh();
+        else SelectedNav = nav;
     }
 
     private ViewModelBase GetPage(NavItem nav)
@@ -60,13 +123,24 @@ public partial class MainViewModel : ObservableObject
         ViewModelBase page = nav.Key switch
         {
             "dashboard" => new DashboardViewModel(),
-            "projects" => new ProjectsViewModel(OpenTasksForProject),
+            "projects" => new ProjectsViewModel(OpenTasksForProject, OpenTimelineForProject),
             "tasks" => new TasksViewModel(),
+            "timeline" => new TimelineViewModel(),
+            "milestones" => new MilestonesViewModel(),
             "settings" => new SettingsViewModel(),
             _ => ComingSoonViewModel.For(nav),
         };
         _pages[nav.Key] = page;
         return page;
+    }
+
+    public void OpenTimelineForProject(int projectId)
+    {
+        var nav = NavItems.First(n => n.Key == "timeline");
+        var page = (TimelineViewModel)GetPage(nav);
+        page.PresetProject(projectId);
+        if (SelectedNav == nav) page.Refresh();
+        else SelectedNav = nav;
     }
 
     public void OpenTasksForProject(int projectId)

@@ -43,22 +43,24 @@ public sealed class Database
     {
         using var c = Open();
         var version = Convert.ToInt64(c.Scalar("PRAGMA user_version;") ?? 0L);
-        if (version < 1)
+        if (version < 1) Apply(c, Schema.V1, 1);
+        if (version < 2) Apply(c, Schema.V2, 2);
+    }
+
+    private static void Apply(Microsoft.Data.Sqlite.SqliteConnection c, string sql, int newVersion)
+    {
+        c.Exec("BEGIN;");
+        try
         {
-            c.Exec("BEGIN;");
-            try
-            {
-                c.Exec(Schema.V1);
-                c.Exec("PRAGMA user_version = 1;");
-                c.Exec("COMMIT;");
-            }
-            catch
-            {
-                c.Exec("ROLLBACK;");
-                throw;
-            }
+            c.Exec(sql);
+            c.Exec($"PRAGMA user_version = {newVersion};");
+            c.Exec("COMMIT;");
         }
-        // Future phases add: if (version < 2) { ... }
+        catch
+        {
+            c.Exec("ROLLBACK;");
+            throw;
+        }
     }
 }
 
@@ -135,6 +137,31 @@ CREATE INDEX IF NOT EXISTS ix_activity_project ON activity(project_id);
 CREATE TABLE IF NOT EXISTS settings(
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+";
+
+    /// <summary>Phase 2: milestones, planned (baseline) dates and actual start dates.</summary>
+    public const string V2 = @"
+ALTER TABLE tasks ADD COLUMN baseline_start TEXT NULL;
+ALTER TABLE tasks ADD COLUMN baseline_due TEXT NULL;
+ALTER TABLE tasks ADD COLUMN started_at TEXT NULL;
+UPDATE tasks SET baseline_start = start_date, baseline_due = due_date;
+UPDATE tasks SET started_at = updated_at WHERE status <> 'NotStarted';
+CREATE TABLE IF NOT EXISTS milestones(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    due_date TEXT NULL,
+    completed_at TEXT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_milestones_project ON milestones(project_id);
+CREATE TABLE IF NOT EXISTS milestone_tasks(
+    milestone_id INTEGER NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    PRIMARY KEY(milestone_id, task_id)
 );
 ";
 }
